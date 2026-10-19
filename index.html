@@ -98,7 +98,7 @@ tools:["Microsoft Excel","Power BI","Microsoft Office / Microsoft 365","Gestión
 languages:["Español: nativo","Inglés: B2 (intermedio alto)"],
 interests:["Análisis de datos","Operaciones","Logística","Planificación de la producción","Calidad","Mejora continua"]
 };
-let supabase = null, currentData = structuredClone(DEFAULT_DATA);
+let supabaseClient = null, currentData = structuredClone(DEFAULT_DATA);
 const $ = id => document.getElementById(id);
 function esc(s=""){return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
 function configured(){return !SUPABASE_URL.startsWith("PEGA_AQUI") && !SUPABASE_ANON_KEY.startsWith("PEGA_AQUI") && window.supabase;}
@@ -132,20 +132,20 @@ function setStatus(id,msg,type=""){const el=$(id);el.textContent=msg;el.classNam
 async function boot(){
 const isAdmin=location.hash==="#admin";$("publicApp").classList.toggle("hidden",isAdmin);$("adminApp").classList.toggle("hidden",!isAdmin);
 if(!configured()){render(DEFAULT_DATA);if(!isAdmin)showNotice("Vista preliminar: el contenido se muestra, pero aún debes conectar Supabase para que el enlace público reciba actualizaciones guardadas. Consulta LEEME.md.");else setStatus("adminStatus","Falta configurar Supabase. Abre LEEME.md y sigue los pasos de instalación.","error");return}
-supabase=window.supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY);
-try{const {data,error}=await supabase.from("cv_profile").select("content,published").eq("id",1).maybeSingle();if(!error&&data&&data.published&&data.content)render({...DEFAULT_DATA,...data.content});else render(DEFAULT_DATA)}catch(e){render(DEFAULT_DATA)}
-if(isAdmin){const {data:{session}}=await supabase.auth.getSession();if(session)await enterAdmin();else showLogin()}
+supabaseClient=window.supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY);
+try{const {data,error}=await supabaseClient.from("cv_profile").select("content,published").eq("id",1).maybeSingle();if(!error&&data&&data.published&&data.content)render({...DEFAULT_DATA,...data.content});else render(DEFAULT_DATA)}catch(e){render(DEFAULT_DATA)}
+if(isAdmin){const {data:{session}}=await supabaseClient.auth.getSession();if(session)await enterAdmin();else showLogin()}
 }
 function showLogin(){$("loginForm").classList.remove("hidden");$("editForm").classList.add("hidden");$("logoutBtn").classList.add("hidden")}
 async function enterAdmin(){
 $("loginForm").classList.add("hidden");$("editForm").classList.remove("hidden");$("logoutBtn").classList.remove("hidden");
-const {data,error}=await supabase.from("cv_profile").select("content").eq("id",1).single();
+const {data,error}=await supabaseClient.from("cv_profile").select("content").eq("id",1).single();
 if(error){setStatus("adminStatus","No se pudo cargar el perfil. Verifica las políticas y la configuración de Supabase.","error");fillForm(DEFAULT_DATA);return}
 currentData={...DEFAULT_DATA,...data.content};fillForm(currentData);setStatus("adminStatus","Sesión iniciada. Puedes editar el CV.","ok")
 }
-$("loginForm").addEventListener("submit",async e=>{e.preventDefault();if(!supabase)return;setStatus("adminStatus","Iniciando sesión…");const {error}=await supabase.auth.signInWithPassword({email:$("loginEmail").value,password:$("loginPassword").value});if(error){setStatus("adminStatus","No se pudo iniciar sesión. Revisa el correo, la contraseña y la configuración de Supabase.","error")}else await enterAdmin()});
-$("editForm").addEventListener("submit",async e=>{e.preventDefault();if(!supabase)return;const d=readForm();setStatus("saveStatus","Guardando cambios…");const {data:{user}}=await supabase.auth.getUser();const {error}=await supabase.from("cv_profile").update({content:d,published:true,updated_at:new Date().toISOString()}).eq("id",1).select("id").single();if(error){setStatus("saveStatus","No se pudieron guardar los cambios. Comprueba que tu usuario administrador esté autorizado en la tabla y que las políticas RLS estén aplicadas.","error");return}render(d);setStatus("saveStatus","Cambios guardados y publicados. El CV público mostrará la información actualizada.","ok")});
-$("logoutBtn").addEventListener("click",async()=>{if(supabase)await supabase.auth.signOut();showLogin();setStatus("adminStatus","Sesión cerrada.")});
+$("loginForm").addEventListener("submit",async e=>{e.preventDefault();if(!supabaseClient)return;setStatus("adminStatus","Iniciando sesión…");const {error}=await supabaseClient.auth.signInWithPassword({email:$("loginEmail").value,password:$("loginPassword").value});if(error){setStatus("adminStatus","No se pudo iniciar sesión. Revisa el correo, la contraseña y la configuración de Supabase.","error")}else await enterAdmin()});
+$("editForm").addEventListener("submit",async e=>{e.preventDefault();if(!supabaseClient)return;const d=readForm();setStatus("saveStatus","Guardando cambios…");const {data:{user}}=await supabaseClient.auth.getUser();const {error}=await supabaseClient.from("cv_profile").update({content:d,published:true,updated_at:new Date().toISOString()}).eq("id",1).select("id").single();if(error){setStatus("saveStatus","No se pudieron guardar los cambios. Comprueba que tu usuario administrador esté autorizado en la tabla y que las políticas RLS estén aplicadas.","error");return}render(d);setStatus("saveStatus","Cambios guardados y publicados. El CV público mostrará la información actualizada.","ok")});
+$("logoutBtn").addEventListener("click",async()=>{if(supabaseClient)await supabaseClient.auth.signOut();showLogin();setStatus("adminStatus","Sesión cerrada.")});
 $("resetBtn").addEventListener("click",()=>{fillForm(DEFAULT_DATA);setStatus("saveStatus","Se cargaron los datos iniciales en el formulario. Pulsa «Guardar y publicar» para aplicar el cambio.")});
 window.addEventListener("hashchange",()=>location.reload());
 render(DEFAULT_DATA);boot();
